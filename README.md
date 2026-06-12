@@ -6,17 +6,17 @@ could use them as well. No DOS drivers were ever available for them.
 
 Recently SCSI device emulators such as ZuluSCSI and BlueSCSI have
 incorporated emulation for the DaynaPORT devices, making it possible
-to get Ethernet (via WiFi) over SCSI for free if you have one of these
-devices on your SCSI chain. And so now it becomes more interesting for
-DOS users who have these devices. And now we have a packet driver!.
+to get Ethernet (via WiFi) over SCSI if you have one of these
+devices on your SCSI chain. This packet driver allows you to use
+the DaynaPORT emulation in DOS.
 
 ## Building
-1. Download and install Borland Turbo C++ 3.x for DOS.
+1. Download and install Borland Turbo C++ 3.0 for DOS.
 2. Set the compiler options:
   * Compact memory model (small code, far pointers)
   * No floating point (not used, reduces code size)
   * 8088 or 8086 code generation
-3. Compile and you will  have an EXE to run.
+3. Compile and you will have an EXE to run.
 
 All code is present in the one CPP file and the H files.  Porting to other
 toolchains is possible, but beware of the funny tricks that were required
@@ -26,7 +26,7 @@ to work around this particular compiler.
 Simple! 
 1. Install the ASPI drivers for your SCSI card.  (ASPI is required.)
 2. `dayna.exe packet_vector scsi_id [-adapter <adapter_id>] [-idlehook]`
-  * Valid packet vector numbers range from 0x60 to 0x80.
+  * Valid packet vector numbers range from 0x60 to 0x80. Chose an open one.
   * SCSI ID is the device ID on your SCSI chain.
   * Adapter id is optional and defaults to zero.
   * The -idlehook flag enables mTCP to run faster. (See the discussion below.)
@@ -56,17 +56,45 @@ it is waiting for keyboard input, giving TSRs a chance to run more often.
 mTCP programs also call this interrupt when they are polling for new
 packets.  This allows mTCP programs (or other programs that call int 0x28
 when they are idle) to process packets much more quickly than just relying
-on the timer interrupt alone.
+on the timer interrupt alone.  WATTCP programs can be modified to do this
+too, but mTCP supports it "out of the box."
 
-Performance is still limited to about 200KB a second while I chase down
-a problem that freezes my system. (I think the problem is in the
-Adaptec ASPI layer but I haven't proven that yet.) If you are brave you
-may remove the delay() statement in the code to speed things up.
+My Pentium 133 can transfer files using FTP at over 500KB/sec when
+using the -idlehook option.  Without that you can expect 25KB/sec.
 
 ## Known Issues
-1. Limited network performance
-2. Uses too much memory due to the non-TSR nature of the program.
-3. Needs testing with more SCSI cards.
+1. Limited performance compared to a dedicated Ethernet card. Under DOS the
+interface has to be polled, which is less performant than an interrupt driven
+device. But it is still more than adequate.
+2. This code uses too much memory due to the non-TSR nature of the program.
+The second copy of COMMAND.COM and the overhead of the C runtime add up.
+3. This code is not compatible with mTCP NetDrive because it uses too much
+stack space during the interrupts. (If this is a problem email me and I'll
+give you an updated mTCP NetDrive that allocates more stack space.)
+4. I have on occasion had my development system freeze up while running this
+code and using the -idlehook option. I suspect it is a race condition between
+the timer interrupt and the DOS idle interrupt, or perhaps a stack overflow.
+A new version of the code rewritten in assembly eliminates the problem. (See
+"Coming soon" for details.)
+5. Needs testing with more SCSI cards.
+
+## Coming soon
+
+Recently I have rewritten this driver entirely in x86 assembler. The new version
+of the code has the following benefits:
+* Overall memory usage is greatly reduced, as it doesn't have the overhead of
+the C run-time library and it is a proper TSR. (It consumes less than 4KB in
+RAM now.)
+* The freezing problem when using the -idlehook flags has been eliminated.
+* Less code runs under the timer interrupt, making it less likely that
+system time will be skewed when you are receiving lots of network packets.
+* It works with mTCP NetDrive because it uses far less stack space and it
+also switches to private stacks when needed.
+
+I'm actively testing and filling in the last 5% of that code now. It will be
+posted when it is ready. I am updating the current C version of the code
+to keep up with firmware changes in the devices while the new version
+of the code is being finished.
 
 ## Credits / References
 The original code for this packet driver was written by RetroTech Chris.

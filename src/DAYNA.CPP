@@ -44,7 +44,6 @@ Mostly rewritten by Michael Brutman (mbbrutman@gmail.com):
 #include <stdlib.h>
 #include <string.h>
 #include <conio.h>
-#include <malloc.h>
 
 #include "intregs.h"
 #include "packet.h"
@@ -64,6 +63,9 @@ const int MaxPacketSize = 1522;
 // The maximum number of packet handles to support.
 const MaxPacketHandles = 10;
 
+
+// ASPI Delay debug code; see the comment where this is referenced.
+int ASPI_Debug_Delay = 0;  // In milliseconds
 
 
 // Packet driver stuff
@@ -162,7 +164,7 @@ int scsi_command(uint8_t command) {
     case SCSI_CDB_Cmd_Read:
       Srb.CDBByte[3] = (Srb.SRB_BufLenLo >> 8) & 0xFF;
       Srb.CDBByte[4] = Srb.SRB_BufLenLo & 0xFF;
-      Srb.CDBByte[5] = 0xc0;
+      Srb.CDBByte[5] = 0x80;
       break;
     case SCSI_CDB_Cmd_Write:
       Srb.CDBByte[3] = (Srb.SRB_BufLenLo >> 8) & 0xFF;
@@ -177,12 +179,15 @@ int scsi_command(uint8_t command) {
   (*Aspi_entry_point)(off, seg);
 
 
-  // Voodoo to be debuged and removed ...  my P133 freezes up on occasion
-  // and I isolated it to the ASPI layer.  Adding a small delay seems to
-  // help but this is not great since we are often doing this under an
-  // interrupt, thus slowing down the machine.
+  // To be debuged and removed ... my P133 freezes up on occasion
+  // and I isolated it to the ASPI layer for my Adaptec 2940 card.
+  // Adding a small delay seems to help but this is not great since
+  // we are often doing this under an interrupt, thus slowing down
+  // the machine.
 
-  delay( 4 );
+  if ( ASPI_Debug_Delay > 0 ) {
+    delay( ASPI_Debug_Delay );
+  }
 
 
   while ( Srb.SRB_Status == SRB_Status_Pending ) { };
@@ -881,6 +886,15 @@ int parseArgs( int argc, char *argv[] ) {
       return -1;
     }
 
+  }
+
+  char *tmp = getenv( "DP_ASPI_DELAY" );
+  if ( tmp != NULL ) {
+    ASPI_Debug_Delay = atoi( tmp );
+    if ( ASPI_Debug_Delay < 0 || ASPI_Debug_Delay > 10 ) {
+      puts("DP_ASPI_DELAY should be between 0 and 10.\n");
+      return -1;
+    }
   }
 
   return 0;
